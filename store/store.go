@@ -1,6 +1,9 @@
 package store
 
-import "sync"
+import (
+	"strconv"
+	"sync"
+)
 
 type KVStore struct {
 	store map[string]string
@@ -21,9 +24,7 @@ func (s *KVStore) Set(key string, value string) {
 }
 
 func (s *KVStore) Has(key string) bool {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-	_, exists := s.store[key]
+	_, exists := s.Get(key)
 	return exists
 }
 
@@ -44,4 +45,27 @@ func (s *KVStore) Delete(key string) bool {
 	}
 
 	return false
+}
+
+func (s *KVStore) Incr(key string) (int, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	value, exists := s.store[key]
+
+	if !exists {
+		value = "0"
+	}
+
+	i, err := strconv.Atoi(value)
+
+	if err != nil {
+		return 0, err
+	}
+
+	i++
+
+	s.store[key] = strconv.Itoa(i)
+
+	return i, nil
 }

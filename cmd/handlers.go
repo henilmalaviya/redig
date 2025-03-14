@@ -19,6 +19,7 @@ const (
 	PingCommand   Command = "ping"
 	DelCommand    Command = "del"
 	ExistsCommand Command = "exists"
+	IncrCommand   Command = "incr"
 )
 
 var handlers = map[string]CommandHandler{
@@ -27,6 +28,7 @@ var handlers = map[string]CommandHandler{
 	PingCommand:   HandlePingCommand,
 	DelCommand:    HandleDelCommand,
 	ExistsCommand: HandleExistsCommand,
+	IncrCommand:   HandleIncrCommand,
 }
 
 func HandleMessage(conn net.Conn, incoming string, kv *store.KVStore) {
@@ -153,4 +155,21 @@ var HandleExistsCommand CommandHandler = func(conn net.Conn, args []string, kv *
 	exists := kv.Has(key)
 
 	conn.Write(resp.NewIntegerResponseFromBool(exists).Bytes())
+}
+
+var HandleIncrCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+	if len(args) != 1 {
+		conn.Write(resp.NewErrorResponse("wrong number of arguments for 'incr' command").Bytes())
+		return
+	}
+
+	key := args[0]
+
+	value, err := kv.Incr(key)
+
+	if err != nil {
+		conn.Write(resp.NewErrorResponse("value is not an integer or out of range").Bytes())
+	}
+
+	conn.Write(resp.NewIntegerResponse(value).Bytes())
 }
