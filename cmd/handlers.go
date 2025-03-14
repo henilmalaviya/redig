@@ -21,6 +21,7 @@ const (
 	ExistsCommand Command = "exists"
 	IncrCommand   Command = "incr"
 	DecrCommand   Command = "decr"
+	KeysCommand   Command = "keys"
 )
 
 var handlers = map[string]CommandHandler{
@@ -31,6 +32,7 @@ var handlers = map[string]CommandHandler{
 	ExistsCommand: HandleExistsCommand,
 	IncrCommand:   HandleIncrCommand,
 	DecrCommand:   HandleDecrCommand,
+	KeysCommand:   HandleKeysCommand,
 }
 
 func HandleMessage(conn net.Conn, incoming string, kv *store.KVStore) {
@@ -191,4 +193,32 @@ var HandleDecrCommand CommandHandler = func(conn net.Conn, args []string, kv *st
 	}
 
 	conn.Write([]byte(resp.NewInteger(value).ToString()))
+}
+
+var HandleKeysCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+	if len(args) != 1 {
+		conn.Write([]byte(resp.NewError(
+			"wrong number of arguments for 'keys' command",
+		).ToString()))
+		return
+	}
+
+	pattern := args[0]
+
+	if pattern != "*" {
+		conn.Write([]byte(resp.NewError(
+			"only * pattern supported as of now",
+		).ToString()))
+		return
+	}
+
+	keys := kv.Keys()
+
+	responseSlice := make([]resp.Response, 0, len(keys))
+
+	for _, key := range keys {
+		responseSlice = append(responseSlice, resp.NewBulkString(key))
+	}
+
+	conn.Write([]byte(resp.NewArray(responseSlice).ToString()))
 }

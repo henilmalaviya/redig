@@ -77,3 +77,16 @@ func (s *KVStore) Incr(key string) (int, error) {
 func (s *KVStore) Decr(key string) (int, error) {
 	return s.Add(key, -1)
 }
+
+func (s *KVStore) Keys() []string {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	keys := make([]string, 0, len(s.store))
+
+	for key := range s.store {
+		keys = append(keys, key)
+	}
+
+	return keys
+}

@@ -8,6 +8,7 @@ const (
 	ErrorFullPrefix    = ErrorPrefix + "ERR" + " "
 	BulkStringPrefix   = "$"
 	IntegerPrefix      = ":"
+	ArrayPrefix        = "*"
 	CRLF               = "\r\n"
 )
 
@@ -76,4 +77,22 @@ func (b BulkString) ToString() string {
 
 func NewBulkString(s string) BulkString {
 	return BulkString{Value: s}
+}
+
+type Array struct {
+	Elements []Response
+}
+
+func (a Array) ToString() string {
+	result := ArrayPrefix + strconv.Itoa(len(a.Elements)) + CRLF
+
+	for _, element := range a.Elements {
+		result += element.ToString()
+	}
+
+	return result
+}
+
+func NewArray(elements []Response) Array {
+	return Array{Elements: elements}
 }
