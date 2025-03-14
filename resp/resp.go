@@ -5,6 +5,7 @@ import "strconv"
 const (
 	SimpleStringPrefix = "+"
 	ErrorPrefix        = "-"
+	ErrorFullPrefix    = ErrorPrefix + "ERR" + " "
 	BulkStringPrefix   = "$"
 	CRLF               = "\r\n"
 )
@@ -28,7 +29,7 @@ func (r Response) String() string {
 	case SimpleStringType:
 		return SimpleStringPrefix + r.Value + CRLF
 	case ErrorType:
-		return ErrorPrefix + "ERR " + r.Value + CRLF
+		return ErrorFullPrefix + r.Value + CRLF
 	case BulkStringType:
 		if r.Value == "" {
 			return BulkStringPrefix + "-1" + CRLF
@@ -48,4 +49,12 @@ func NewResponse(t ResponseType, v ResponseValue) Response {
 		Type:  t,
 		Value: v,
 	}
+}
+
+func NewOKResponse() Response {
+	return NewResponse(SimpleStringType, "OK")
+}
+
+func NewErrorResponse(msg string) Response {
+	return NewResponse(ErrorType, msg)
 }

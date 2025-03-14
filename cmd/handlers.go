@@ -10,47 +10,53 @@ import (
 	"henil.dev/redig/store"
 )
 
-func HandleSetCommand(conn net.Conn, splitIncoming []string, kv *store.KVStore) {
+type CommandHandler func(conn net.Conn, args []string, kv *store.KVStore)
 
-	if len(splitIncoming) != 3 {
+var handlers = map[string]CommandHandler{
+	"set": HandleSetCommand,
+	"get": HandleGetCommand,
+}
+
+var HandleSetCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+
+	if len(args) != 2 {
 		conn.Write(
-			resp.NewResponse(
-				resp.ErrorType,
+			resp.NewErrorResponse(
 				"wrong number of arguments for 'set' command",
 			).Bytes(),
 		)
 		return
 	}
 
-	key := splitIncoming[1]
-	value := splitIncoming[2]
+	key := args[0]
+	value := args[1]
 
 	kv.Set(key, value)
 
 	conn.Write(
-		resp.NewResponse(
-			resp.SimpleStringType,
-			"OK",
-		).Bytes(),
+		resp.NewOKResponse().Bytes(),
 	)
 }
 
-func HandleGetCommand(conn net.Conn, splitIncoming []string, kv *store.KVStore) {
-	if len(splitIncoming) != 2 {
+var HandleGetCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+	if len(args) != 1 {
 		conn.Write(
-			resp.NewResponse(
-				resp.ErrorType,
+			resp.NewErrorResponse(
 				"wrong number of arguments for 'get' command",
 			).Bytes(),
 		)
 		return
 	}
 
-	key := splitIncoming[1]
+	key := args[0]
 
-	value, _ := kv.Get(key)
+	value, exists := kv.Get(key)
 
 	response := resp.NewResponse(resp.BulkStringType, value)
+
+	if !exists {
+		response.Value = ""
+	}
 
 	conn.Write(response.Bytes())
 }
@@ -68,19 +74,19 @@ func HandleMessage(conn net.Conn, incoming string, kv *store.KVStore) {
 
 	log.Printf("Split incoming: %v\n", splitIncoming)
 
-	if strings.EqualFold(splitIncoming[0], "SET") {
-		HandleSetCommand(conn, splitIncoming, kv)
-		return
-	}
+	rootCommand, args := splitIncoming[0], splitIncoming[1:]
 
-	if strings.EqualFold(splitIncoming[0], "GET") {
-		HandleGetCommand(conn, splitIncoming, kv)
+	rootCommand = strings.ToLower(rootCommand)
+
+	handler, exists := handlers[rootCommand]
+
+	if exists {
+		handler(conn, args, kv)
 		return
 	}
 
 	conn.Write(
-		resp.NewResponse(
-			resp.ErrorType,
+		resp.NewErrorResponse(
 			fmt.Sprintf("unknown command '%s'", splitIncoming[0]),
 		).Bytes(),
 	)
