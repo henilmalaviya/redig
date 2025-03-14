@@ -11,7 +11,7 @@ import (
 )
 
 type Command = string
-type CommandHandler func(conn net.Conn, args []string, kv *store.KVStore)
+type CommandHandler func(conn net.Conn, args []string, kv *store.KVStore) resp.Response
 
 const (
 	SetCommand    Command = "set"
@@ -54,25 +54,25 @@ func HandleMessage(conn net.Conn, incoming string, kv *store.KVStore) {
 
 	handler, exists := handlers[rootCommand]
 
+	var response resp.Response
+
 	if exists {
-		handler(conn, args, kv)
-		return
+		response = handler(conn, args, kv)
+	} else {
+		response = resp.NewError(
+			fmt.Sprintf("unknown command '%s'", splitIncoming[0]),
+		)
 	}
 
-	conn.Write(
-		[]byte(resp.NewError(
-			fmt.Sprintf("unknown command '%s'", splitIncoming[0]),
-		).ToString()),
-	)
+	conn.Write([]byte(response.ToString()))
 }
 
-var HandleSetCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+var HandleSetCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
 
 	if len(args) != 2 {
-		conn.Write([]byte(resp.NewError(
+		return resp.NewError(
 			"wrong number of arguments for 'set' command",
-		).ToString()))
-		return
+		)
 	}
 
 	key := args[0]
@@ -80,15 +80,14 @@ var HandleSetCommand CommandHandler = func(conn net.Conn, args []string, kv *sto
 
 	kv.Set(key, value)
 
-	conn.Write([]byte(resp.NewOKResponse().ToString()))
+	return resp.NewOKResponse()
 }
 
-var HandleGetCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+var HandleGetCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
 	if len(args) != 1 {
-		conn.Write([]byte(resp.NewError(
+		return resp.NewError(
 			"wrong number of arguments for 'get' command",
-		).ToString()))
-		return
+		)
 	}
 
 	key := args[0]
@@ -101,62 +100,57 @@ var HandleGetCommand CommandHandler = func(conn net.Conn, args []string, kv *sto
 		response.Value = ""
 	}
 
-	conn.Write([]byte(response.ToString()))
+	return response
 }
 
-var HandlePingCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+var HandlePingCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
 	if len(args) > 1 {
-		conn.Write([]byte(resp.NewError(
+		return resp.NewError(
 			"wrong number of arguments for 'ping' command",
-		).ToString()))
-		return
+		)
 	}
 
 	if len(args) == 0 {
-		conn.Write([]byte(resp.NewSimpleString("PONG").ToString()))
-		return
+		return resp.NewSimpleString("PONG")
 	}
 
-	conn.Write([]byte(resp.NewBulkString(args[0]).ToString()))
+	return resp.NewBulkString(args[0])
 }
 
-var HandleDelCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+var HandleDelCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
 	if len(args) != 1 {
-		conn.Write([]byte(resp.NewError(
+		return resp.NewError(
 			"wrong number of arguments for 'del' command",
-		).ToString()))
-		return
+		)
 	}
 
 	key := args[0]
 
 	didExist := kv.Delete(key)
 
-	conn.Write([]byte(resp.NewIntegerFromBool(didExist).ToString()))
+	return resp.NewIntegerFromBool(didExist)
 }
 
-var HandleExistsCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+var HandleExistsCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
 
 	if len(args) != 1 {
-		conn.Write([]byte(resp.NewError(
+		return resp.NewError(
 			"wrong number of arguments for 'exists' command",
-		).ToString()))
-		return
+		)
 	}
 
 	key := args[0]
 
 	exists := kv.Has(key)
 
-	conn.Write([]byte(resp.NewIntegerFromBool(exists).ToString()))
+	return resp.NewIntegerFromBool(exists)
 }
 
-var HandleIncrCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+var HandleIncrCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
 	if len(args) != 1 {
-		conn.Write([]byte(resp.NewError(
+		return resp.NewError(
 			"wrong number of arguments for 'incr' command",
-		).ToString()))
-		return
+		)
 	}
 
 	key := args[0]
@@ -164,21 +158,19 @@ var HandleIncrCommand CommandHandler = func(conn net.Conn, args []string, kv *st
 	value, err := kv.Incr(key)
 
 	if err != nil {
-		conn.Write([]byte(resp.NewError(
+		return resp.NewError(
 			"value is not an integer or out of range",
-		).ToString()))
-		return
+		)
 	}
 
-	conn.Write([]byte(resp.NewInteger(value).ToString()))
+	return resp.NewInteger(value)
 }
 
-var HandleDecrCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+var HandleDecrCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
 	if len(args) != 1 {
-		conn.Write([]byte(resp.NewError(
+		return resp.NewError(
 			"wrong number of arguments for 'decr' command",
-		).ToString()))
-		return
+		)
 	}
 
 	key := args[0]
@@ -186,30 +178,27 @@ var HandleDecrCommand CommandHandler = func(conn net.Conn, args []string, kv *st
 	value, err := kv.Decr(key)
 
 	if err != nil {
-		conn.Write([]byte(resp.NewError(
+		return resp.NewError(
 			"value is not an integer or out of range",
-		).ToString()))
-		return
+		)
 	}
 
-	conn.Write([]byte(resp.NewInteger(value).ToString()))
+	return resp.NewInteger(value)
 }
 
-var HandleKeysCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+var HandleKeysCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
 	if len(args) != 1 {
-		conn.Write([]byte(resp.NewError(
+		return resp.NewError(
 			"wrong number of arguments for 'keys' command",
-		).ToString()))
-		return
+		)
 	}
 
 	pattern := args[0]
 
 	if pattern != "*" {
-		conn.Write([]byte(resp.NewError(
+		return resp.NewError(
 			"only * pattern supported as of now",
-		).ToString()))
-		return
+		)
 	}
 
 	keys := kv.Keys()
@@ -220,5 +209,5 @@ var HandleKeysCommand CommandHandler = func(conn net.Conn, args []string, kv *st
 		responseSlice = append(responseSlice, resp.NewBulkString(key))
 	}
 
-	conn.Write([]byte(resp.NewArray(responseSlice).ToString()))
+	return resp.NewArray(responseSlice)
 }
