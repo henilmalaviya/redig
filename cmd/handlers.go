@@ -58,20 +58,18 @@ func HandleMessage(conn net.Conn, incoming string, kv *store.KVStore) {
 	}
 
 	conn.Write(
-		resp.NewErrorResponse(
+		[]byte(resp.NewError(
 			fmt.Sprintf("unknown command '%s'", splitIncoming[0]),
-		).Bytes(),
+		).ToString()),
 	)
 }
 
 var HandleSetCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
 
 	if len(args) != 2 {
-		conn.Write(
-			resp.NewErrorResponse(
-				"wrong number of arguments for 'set' command",
-			).Bytes(),
-		)
+		conn.Write([]byte(resp.NewError(
+			"wrong number of arguments for 'set' command",
+		).ToString()))
 		return
 	}
 
@@ -80,18 +78,14 @@ var HandleSetCommand CommandHandler = func(conn net.Conn, args []string, kv *sto
 
 	kv.Set(key, value)
 
-	conn.Write(
-		resp.NewOKResponse().Bytes(),
-	)
+	conn.Write([]byte(resp.NewOKResponse().ToString()))
 }
 
 var HandleGetCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
 	if len(args) != 1 {
-		conn.Write(
-			resp.NewErrorResponse(
-				"wrong number of arguments for 'get' command",
-			).Bytes(),
-		)
+		conn.Write([]byte(resp.NewError(
+			"wrong number of arguments for 'get' command",
+		).ToString()))
 		return
 	}
 
@@ -99,38 +93,36 @@ var HandleGetCommand CommandHandler = func(conn net.Conn, args []string, kv *sto
 
 	value, exists := kv.Get(key)
 
-	response := resp.NewResponse(resp.BulkStringType, value)
+	response := resp.NewBulkString(value)
 
 	if !exists {
 		response.Value = ""
 	}
 
-	conn.Write(response.Bytes())
+	conn.Write([]byte(response.ToString()))
 }
 
 var HandlePingCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
 	if len(args) > 1 {
-		conn.Write(
-			resp.NewErrorResponse("wrong number of arguments for 'ping' command").Bytes(),
-		)
+		conn.Write([]byte(resp.NewError(
+			"wrong number of arguments for 'ping' command",
+		).ToString()))
 		return
 	}
 
 	if len(args) == 0 {
-		conn.Write(resp.NewResponse(resp.SimpleStringType, "PONG").Bytes())
+		conn.Write([]byte(resp.NewSimpleString("PONG").ToString()))
 		return
 	}
 
-	conn.Write(resp.NewResponse(resp.BulkStringType, args[0]).Bytes())
+	conn.Write([]byte(resp.NewBulkString(args[0]).ToString()))
 }
 
 var HandleDelCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
 	if len(args) != 1 {
-		conn.Write(
-			resp.NewErrorResponse(
-				"wrong number of arguments for 'del' command",
-			).Bytes(),
-		)
+		conn.Write([]byte(resp.NewError(
+			"wrong number of arguments for 'del' command",
+		).ToString()))
 		return
 	}
 
@@ -138,17 +130,15 @@ var HandleDelCommand CommandHandler = func(conn net.Conn, args []string, kv *sto
 
 	didExist := kv.Delete(key)
 
-	conn.Write(resp.NewIntegerResponseFromBool(didExist).Bytes())
+	conn.Write([]byte(resp.NewIntegerFromBool(didExist).ToString()))
 }
 
 var HandleExistsCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
 
 	if len(args) != 1 {
-		conn.Write(
-			resp.NewErrorResponse(
-				"wrong number of arguments for 'exists' command",
-			).Bytes(),
-		)
+		conn.Write([]byte(resp.NewError(
+			"wrong number of arguments for 'exists' command",
+		).ToString()))
 		return
 	}
 
@@ -156,12 +146,14 @@ var HandleExistsCommand CommandHandler = func(conn net.Conn, args []string, kv *
 
 	exists := kv.Has(key)
 
-	conn.Write(resp.NewIntegerResponseFromBool(exists).Bytes())
+	conn.Write([]byte(resp.NewIntegerFromBool(exists).ToString()))
 }
 
 var HandleIncrCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
 	if len(args) != 1 {
-		conn.Write(resp.NewErrorResponse("wrong number of arguments for 'incr' command").Bytes())
+		conn.Write([]byte(resp.NewError(
+			"wrong number of arguments for 'incr' command",
+		).ToString()))
 		return
 	}
 
@@ -170,16 +162,20 @@ var HandleIncrCommand CommandHandler = func(conn net.Conn, args []string, kv *st
 	value, err := kv.Incr(key)
 
 	if err != nil {
-		conn.Write(resp.NewErrorResponse("value is not an integer or out of range").Bytes())
+		conn.Write([]byte(resp.NewError(
+			"value is not an integer or out of range",
+		).ToString()))
 		return
 	}
 
-	conn.Write(resp.NewIntegerResponse(value).Bytes())
+	conn.Write([]byte(resp.NewInteger(value).ToString()))
 }
 
 var HandleDecrCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
 	if len(args) != 1 {
-		conn.Write(resp.NewErrorResponse("wrong number of arguments for 'decr' command").Bytes())
+		conn.Write([]byte(resp.NewError(
+			"wrong number of arguments for 'decr' command",
+		).ToString()))
 		return
 	}
 
@@ -188,9 +184,11 @@ var HandleDecrCommand CommandHandler = func(conn net.Conn, args []string, kv *st
 	value, err := kv.Decr(key)
 
 	if err != nil {
-		conn.Write(resp.NewErrorResponse("value is not an integer or out of range").Bytes())
+		conn.Write([]byte(resp.NewError(
+			"value is not an integer or out of range",
+		).ToString()))
 		return
 	}
 
-	conn.Write(resp.NewIntegerResponse(value).Bytes())
+	conn.Write([]byte(resp.NewInteger(value).ToString()))
 }

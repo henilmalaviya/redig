@@ -11,66 +11,69 @@ const (
 	CRLF               = "\r\n"
 )
 
-type ResponseType = string
-type ResponseValue = string
-
-const (
-	SimpleStringType ResponseType = "simple_string"
-	ErrorType        ResponseType = "error"
-	BulkStringType   ResponseType = "bulk_string"
-	IntegerType      ResponseType = "integer"
-)
-
-type Response struct {
-	Type  ResponseType
-	Value ResponseValue
+type Response interface {
+	ToString() string
 }
 
-func (r Response) String() string {
-	switch r.Type {
-	case SimpleStringType:
-		return SimpleStringPrefix + r.Value + CRLF
-	case ErrorType:
-		return ErrorFullPrefix + r.Value + CRLF
-	case BulkStringType:
-		if r.Value == "" {
-			return BulkStringPrefix + "-1" + CRLF
-		}
-		return BulkStringPrefix + strconv.Itoa(len(r.Value)) + CRLF + r.Value + CRLF
-	case IntegerType:
-		return IntegerPrefix + r.Value + CRLF
-	default:
-		return ErrorPrefix + "unknown response type" + CRLF
-	}
+type SimpleString struct {
+	Value string
 }
 
-func (r Response) Bytes() []byte {
-	return []byte(r.String())
+func (s SimpleString) ToString() string {
+	return SimpleStringPrefix + s.Value + CRLF
 }
 
-func NewResponse(t ResponseType, v ResponseValue) Response {
-	return Response{
-		Type:  t,
-		Value: v,
-	}
+func NewSimpleString(s string) SimpleString {
+	return SimpleString{Value: s}
 }
 
-func NewOKResponse() Response {
-	return NewResponse(SimpleStringType, "OK")
+func NewOKResponse() SimpleString {
+	return NewSimpleString("OK")
 }
 
-func NewErrorResponse(msg string) Response {
-	return NewResponse(ErrorType, msg)
+type Error struct {
+	Message string
 }
 
-func NewIntegerResponse(i int) Response {
-	return NewResponse(IntegerType, strconv.Itoa(i))
+func (e Error) ToString() string {
+	return ErrorFullPrefix + e.Message + CRLF
 }
 
-func NewIntegerResponseFromBool(b bool) Response {
-	var i int = 0
+func NewError(s string) Error {
+	return Error{Message: s}
+}
+
+type Integer struct {
+	Value int
+}
+
+func (i Integer) ToString() string {
+	return IntegerPrefix + strconv.Itoa(i.Value) + CRLF
+}
+
+func NewInteger(i int) Integer {
+	return Integer{Value: i}
+}
+
+func NewIntegerFromBool(b bool) Integer {
 	if b {
-		i = 1
+		return NewInteger(1)
 	}
-	return NewIntegerResponse(i)
+	return NewInteger(0)
+}
+
+type BulkString struct {
+	Value string
+}
+
+func (b BulkString) ToString() string {
+	if b.Value == "" {
+		return BulkStringPrefix + "-1" + CRLF
+	}
+
+	return BulkStringPrefix + strconv.Itoa(len(b.Value)) + CRLF + b.Value + CRLF
+}
+
+func NewBulkString(s string) BulkString {
+	return BulkString{Value: s}
 }
