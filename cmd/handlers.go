@@ -20,6 +20,7 @@ const (
 	DelCommand    Command = "del"
 	ExistsCommand Command = "exists"
 	IncrCommand   Command = "incr"
+	DecrCommand   Command = "decr"
 )
 
 var handlers = map[string]CommandHandler{
@@ -29,6 +30,7 @@ var handlers = map[string]CommandHandler{
 	DelCommand:    HandleDelCommand,
 	ExistsCommand: HandleExistsCommand,
 	IncrCommand:   HandleIncrCommand,
+	DecrCommand:   HandleDecrCommand,
 }
 
 func HandleMessage(conn net.Conn, incoming string, kv *store.KVStore) {
@@ -169,6 +171,25 @@ var HandleIncrCommand CommandHandler = func(conn net.Conn, args []string, kv *st
 
 	if err != nil {
 		conn.Write(resp.NewErrorResponse("value is not an integer or out of range").Bytes())
+		return
+	}
+
+	conn.Write(resp.NewIntegerResponse(value).Bytes())
+}
+
+var HandleDecrCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+	if len(args) != 1 {
+		conn.Write(resp.NewErrorResponse("wrong number of arguments for 'decr' command").Bytes())
+		return
+	}
+
+	key := args[0]
+
+	value, err := kv.Decr(key)
+
+	if err != nil {
+		conn.Write(resp.NewErrorResponse("value is not an integer or out of range").Bytes())
+		return
 	}
 
 	conn.Write(resp.NewIntegerResponse(value).Bytes())

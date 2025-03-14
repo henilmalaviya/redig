@@ -47,7 +47,7 @@ func (s *KVStore) Delete(key string) bool {
 	return false
 }
 
-func (s *KVStore) Incr(key string) (int, error) {
+func (s *KVStore) Add(key string, x int) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -63,9 +63,17 @@ func (s *KVStore) Incr(key string) (int, error) {
 		return 0, err
 	}
 
-	i++
+	i += x
 
 	s.store[key] = strconv.Itoa(i)
 
 	return i, nil
+}
+
+func (s *KVStore) Incr(key string) (int, error) {
+	return s.Add(key, 1)
+}
+
+func (s *KVStore) Decr(key string) (int, error) {
+	return s.Add(key, -1)
 }
