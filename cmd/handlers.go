@@ -14,17 +14,19 @@ type Command = string
 type CommandHandler func(conn net.Conn, args []string, kv *store.KVStore)
 
 const (
-	SetCommand  Command = "set"
-	GetCommand  Command = "get"
-	PingCommand Command = "ping"
-	DelCommand  Command = "del"
+	SetCommand    Command = "set"
+	GetCommand    Command = "get"
+	PingCommand   Command = "ping"
+	DelCommand    Command = "del"
+	ExistsCommand Command = "exists"
 )
 
 var handlers = map[string]CommandHandler{
-	SetCommand:  HandleSetCommand,
-	GetCommand:  HandleGetCommand,
-	PingCommand: HandlePingCommand,
-	DelCommand:  HandleDelCommand,
+	SetCommand:    HandleSetCommand,
+	GetCommand:    HandleGetCommand,
+	PingCommand:   HandlePingCommand,
+	DelCommand:    HandleDelCommand,
+	ExistsCommand: HandleExistsCommand,
 }
 
 func HandleMessage(conn net.Conn, incoming string, kv *store.KVStore) {
@@ -133,4 +135,22 @@ var HandleDelCommand CommandHandler = func(conn net.Conn, args []string, kv *sto
 	didExist := kv.Delete(key)
 
 	conn.Write(resp.NewIntegerResponseFromBool(didExist).Bytes())
+}
+
+var HandleExistsCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+
+	if len(args) != 1 {
+		conn.Write(
+			resp.NewErrorResponse(
+				"wrong number of arguments for 'exists' command",
+			).Bytes(),
+		)
+		return
+	}
+
+	key := args[0]
+
+	exists := kv.Has(key)
+
+	conn.Write(resp.NewIntegerResponseFromBool(exists).Bytes())
 }
