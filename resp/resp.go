@@ -7,6 +7,7 @@ const (
 	ErrorPrefix        = "-"
 	ErrorFullPrefix    = ErrorPrefix + "ERR" + " "
 	BulkStringPrefix   = "$"
+	IntegerPrefix      = ":"
 	CRLF               = "\r\n"
 )
 
@@ -17,6 +18,7 @@ const (
 	SimpleStringType ResponseType = "simple_string"
 	ErrorType        ResponseType = "error"
 	BulkStringType   ResponseType = "bulk_string"
+	IntegerType      ResponseType = "integer"
 )
 
 type Response struct {
@@ -35,6 +37,8 @@ func (r Response) String() string {
 			return BulkStringPrefix + "-1" + CRLF
 		}
 		return BulkStringPrefix + strconv.Itoa(len(r.Value)) + CRLF + r.Value + CRLF
+	case IntegerType:
+		return IntegerPrefix + r.Value + CRLF
 	default:
 		return ErrorPrefix + "unknown response type" + CRLF
 	}
@@ -57,4 +61,16 @@ func NewOKResponse() Response {
 
 func NewErrorResponse(msg string) Response {
 	return NewResponse(ErrorType, msg)
+}
+
+func NewIntegerResponse(i int) Response {
+	return NewResponse(IntegerType, strconv.Itoa(i))
+}
+
+func NewIntegerResponseFromBool(b bool) Response {
+	var i int = 0
+	if b {
+		i = 1
+	}
+	return NewIntegerResponse(i)
 }

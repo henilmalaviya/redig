@@ -10,12 +10,21 @@ import (
 	"henil.dev/redig/store"
 )
 
+type Command = string
 type CommandHandler func(conn net.Conn, args []string, kv *store.KVStore)
 
+const (
+	SetCommand  Command = "set"
+	GetCommand  Command = "get"
+	PingCommand Command = "ping"
+	DelCommand  Command = "del"
+)
+
 var handlers = map[string]CommandHandler{
-	"set":  HandleSetCommand,
-	"get":  HandleGetCommand,
-	"ping": HandlePingCommand,
+	SetCommand:  HandleSetCommand,
+	GetCommand:  HandleGetCommand,
+	PingCommand: HandlePingCommand,
+	DelCommand:  HandleDelCommand,
 }
 
 func HandleMessage(conn net.Conn, incoming string, kv *store.KVStore) {
@@ -107,4 +116,21 @@ var HandlePingCommand CommandHandler = func(conn net.Conn, args []string, kv *st
 	}
 
 	conn.Write(resp.NewResponse(resp.BulkStringType, args[0]).Bytes())
+}
+
+var HandleDelCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) {
+	if len(args) != 1 {
+		conn.Write(
+			resp.NewErrorResponse(
+				"wrong number of arguments for 'del' command",
+			).Bytes(),
+		)
+		return
+	}
+
+	key := args[0]
+
+	didExist := kv.Delete(key)
+
+	conn.Write(resp.NewIntegerResponseFromBool(didExist).Bytes())
 }
