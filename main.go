@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -111,6 +112,7 @@ func handleMessage(conn net.Conn, incoming string) {
 		return
 	}
 
+	conn.Write([]byte(fmt.Sprintf("-ERR unknown command '%s'\r\n", splitIncoming[0])))
 }
 
 func handleConnection(conn net.Conn) {
