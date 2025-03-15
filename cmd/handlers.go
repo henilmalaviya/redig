@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"path/filepath"
 	"strings"
 
 	"henil.dev/redig/resp"
@@ -195,17 +196,22 @@ var HandleKeysCommand CommandHandler = func(conn net.Conn, args []string, kv *st
 
 	pattern := args[0]
 
-	if pattern != "*" {
-		return resp.NewError(
-			"only * pattern supported as of now",
-		)
-	}
-
 	keys := kv.Keys()
 
 	responseSlice := make([]resp.Response, 0, len(keys))
 
 	for _, key := range keys {
+
+		patternMatch, err := filepath.Match(pattern, key)
+
+		if err != nil {
+			return resp.NewError("invalid pattern")
+		}
+
+		if !patternMatch {
+			continue
+		}
+
 		responseSlice = append(responseSlice, resp.NewBulkString(key))
 	}
 
