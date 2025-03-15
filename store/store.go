@@ -179,3 +179,30 @@ func (s *KVStore) TTL(key string) int {
 
 	return ttl
 }
+
+func (s *KVStore) isExpired(expiry time.Time) bool {
+	return expiry.Before(time.Now())
+}
+
+func (s *KVStore) Persist(key string) bool {
+	s.mutex.RLock()
+	defer s.mutex.Unlock()
+
+	if _, exists := s.store[key]; !exists {
+		return false
+	}
+
+	if _, hasExpiry := s.expiries[key]; !hasExpiry {
+		return false
+	}
+
+	if s.isExpired(s.expiries[key]) {
+		delete(s.store, key)
+		delete(s.expiries, key)
+		return false
+	}
+
+	delete(s.expiries, key)
+
+	return true
+}

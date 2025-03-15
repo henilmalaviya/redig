@@ -16,29 +16,31 @@ type Command = string
 type CommandHandler func(conn net.Conn, args []string, kv *store.KVStore) resp.Response
 
 const (
-	SetCommand    Command = "set"
-	GetCommand    Command = "get"
-	PingCommand   Command = "ping"
-	DelCommand    Command = "del"
-	ExistsCommand Command = "exists"
-	IncrCommand   Command = "incr"
-	DecrCommand   Command = "decr"
-	KeysCommand   Command = "keys"
-	ExpireCommand Command = "expire"
-	TTLCommand    Command = "ttl"
+	SetCommand     Command = "set"
+	GetCommand     Command = "get"
+	PingCommand    Command = "ping"
+	DelCommand     Command = "del"
+	ExistsCommand  Command = "exists"
+	IncrCommand    Command = "incr"
+	DecrCommand    Command = "decr"
+	KeysCommand    Command = "keys"
+	ExpireCommand  Command = "expire"
+	TTLCommand     Command = "ttl"
+	PersistCommand Command = "persist"
 )
 
 var handlers = map[string]CommandHandler{
-	SetCommand:    HandleSetCommand,
-	GetCommand:    HandleGetCommand,
-	PingCommand:   HandlePingCommand,
-	DelCommand:    HandleDelCommand,
-	ExistsCommand: HandleExistsCommand,
-	IncrCommand:   HandleIncrCommand,
-	DecrCommand:   HandleDecrCommand,
-	KeysCommand:   HandleKeysCommand,
-	ExpireCommand: HandleExpireCommand,
-	TTLCommand:    HandleTTLCommand,
+	SetCommand:     HandleSetCommand,
+	GetCommand:     HandleGetCommand,
+	PingCommand:    HandlePingCommand,
+	DelCommand:     HandleDelCommand,
+	ExistsCommand:  HandleExistsCommand,
+	IncrCommand:    HandleIncrCommand,
+	DecrCommand:    HandleDecrCommand,
+	KeysCommand:    HandleKeysCommand,
+	ExpireCommand:  HandleExpireCommand,
+	TTLCommand:     HandleTTLCommand,
+	PersistCommand: HandlePersistCommand,
 }
 
 func HandleMessage(conn net.Conn, incoming string, kv *store.KVStore) {
@@ -250,4 +252,16 @@ var HandleTTLCommand CommandHandler = func(conn net.Conn, args []string, kv *sto
 	ttl := kv.TTL(key)
 
 	return resp.NewInteger(ttl)
+}
+
+var HandlePersistCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
+
+	if len(args) != 1 {
+		return resp.NewError("wrong number of arguments for 'persist' command")
+	}
+
+	key := args[0]
+	didPersist := kv.Persist(key)
+
+	return resp.NewIntegerFromBool(didPersist)
 }
