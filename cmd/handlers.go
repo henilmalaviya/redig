@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"henil.dev/redig/resp"
@@ -23,6 +24,7 @@ const (
 	IncrCommand   Command = "incr"
 	DecrCommand   Command = "decr"
 	KeysCommand   Command = "keys"
+	ExpireCommand Command = "expire"
 )
 
 var handlers = map[string]CommandHandler{
@@ -34,6 +36,7 @@ var handlers = map[string]CommandHandler{
 	IncrCommand:   HandleIncrCommand,
 	DecrCommand:   HandleDecrCommand,
 	KeysCommand:   HandleKeysCommand,
+	ExpireCommand: HandleExpireCommand,
 }
 
 func HandleMessage(conn net.Conn, incoming string, kv *store.KVStore) {
@@ -216,4 +219,21 @@ var HandleKeysCommand CommandHandler = func(conn net.Conn, args []string, kv *st
 	}
 
 	return resp.NewArray(responseSlice)
+}
+
+var HandleExpireCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
+	if len(args) != 2 {
+		return resp.NewError("wrong number of arguments for 'expire' command")
+	}
+
+	key := args[0]
+	ttl, err := strconv.Atoi(args[1])
+
+	if err != nil {
+		return resp.NewError("value is not an integer or out of range")
+	}
+
+	set := kv.Expire(key, ttl)
+
+	return resp.NewIntegerFromBool(set)
 }

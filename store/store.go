@@ -3,16 +3,19 @@ package store
 import (
 	"strconv"
 	"sync"
+	"time"
 )
 
 type KVStore struct {
-	store map[string]string
-	mutex sync.RWMutex
+	store    map[string]string
+	mutex    sync.RWMutex
+	expiries map[string]time.Time
 }
 
 func NewKVStore() *KVStore {
 	return &KVStore{
-		store: make(map[string]string),
+		store:    make(map[string]string),
+		expiries: make(map[string]time.Time),
 	}
 }
 
@@ -29,6 +32,11 @@ func (s *KVStore) Has(key string) bool {
 }
 
 func (s *KVStore) Get(key string) (string, bool) {
+
+	if s.checkAndRemoveIfExpired(key) {
+		return "", false
+	}
+
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	value, exists := s.store[key]
@@ -36,18 +44,22 @@ func (s *KVStore) Get(key string) (string, bool) {
 }
 
 func (s *KVStore) Delete(key string) bool {
-	if s.Has(key) {
-		s.mutex.Lock()
-		defer s.mutex.Unlock()
-
-		delete(s.store, key)
-		return true
+	if !s.Has(key) {
+		return false
 	}
 
-	return false
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	delete(s.store, key)
+	delete(s.expiries, key)
+	return true
 }
 
 func (s *KVStore) Add(key string, x int) (int, error) {
+
+	s.checkAndRemoveIfExpired(key)
+
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -80,13 +92,67 @@ func (s *KVStore) Decr(key string) (int, error) {
 
 func (s *KVStore) Keys() []string {
 	s.mutex.RLock()
-	defer s.mutex.RUnlock()
 
 	keys := make([]string, 0, len(s.store))
-
 	for key := range s.store {
 		keys = append(keys, key)
 	}
 
-	return keys
+	s.mutex.RUnlock()
+
+	validKeys := make([]string, 0, len(keys))
+	now := time.Now()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	for _, key := range keys {
+		if expiry, exists := s.expiries[key]; !exists || !expiry.Before(now) {
+			validKeys = append(validKeys, key)
+		}
+	}
+
+	return validKeys
+}
+
+func (s *KVStore) checkAndRemoveIfExpired(key string) bool {
+	s.mutex.RLock()
+	expiry, exists := s.expiries[key]
+	if !exists {
+		s.mutex.RUnlock()
+		return false
+	}
+	isExpired := expiry.Before(time.Now())
+	s.mutex.RUnlock()
+
+	if !isExpired {
+		return false
+	}
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	expiry, exists = s.expiries[key]
+	if !exists || !expiry.Before(time.Now()) {
+		return false
+	}
+
+	delete(s.store, key)
+	delete(s.expiries, key)
+	return true
+}
+
+func (s *KVStore) Expire(key string, ttl int) bool {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if _, exists := s.store[key]; !exists {
+		return false
+	}
+
+	if expiry, hasExpiry := s.expiries[key]; hasExpiry && expiry.Before(time.Now()) {
+		delete(s.store, key)
+		delete(s.expiries, key)
+		return false
+	}
+
+	s.expiries[key] = time.Now().Add(time.Duration(ttl) * time.Second)
+	return true
 }
