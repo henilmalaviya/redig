@@ -156,3 +156,26 @@ func (s *KVStore) Expire(key string, ttl int) bool {
 	s.expiries[key] = time.Now().Add(time.Duration(ttl) * time.Second)
 	return true
 }
+
+func (s *KVStore) TTL(key string) int {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	if _, exists := s.store[key]; !exists {
+		return -2
+	}
+
+	expiry, hasExpiry := s.expiries[key]
+
+	if !hasExpiry {
+		return -1
+	}
+
+	remaining := time.Until(expiry).Seconds()
+	ttl := int(remaining)
+	if remaining <= 0 {
+		return -2
+	}
+
+	return ttl
+}

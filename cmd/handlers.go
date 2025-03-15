@@ -25,6 +25,7 @@ const (
 	DecrCommand   Command = "decr"
 	KeysCommand   Command = "keys"
 	ExpireCommand Command = "expire"
+	TTLCommand    Command = "ttl"
 )
 
 var handlers = map[string]CommandHandler{
@@ -37,6 +38,7 @@ var handlers = map[string]CommandHandler{
 	DecrCommand:   HandleDecrCommand,
 	KeysCommand:   HandleKeysCommand,
 	ExpireCommand: HandleExpireCommand,
+	TTLCommand:    HandleTTLCommand,
 }
 
 func HandleMessage(conn net.Conn, incoming string, kv *store.KVStore) {
@@ -236,4 +238,16 @@ var HandleExpireCommand CommandHandler = func(conn net.Conn, args []string, kv *
 	set := kv.Expire(key, ttl)
 
 	return resp.NewIntegerFromBool(set)
+}
+
+var HandleTTLCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
+
+	if len(args) != 1 {
+		return resp.NewError("wrong number of arguments for 'ttl' command")
+	}
+
+	key := args[0]
+	ttl := kv.TTL(key)
+
+	return resp.NewInteger(ttl)
 }
