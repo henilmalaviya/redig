@@ -1,4 +1,4 @@
-// Package store runs an in-memory key-value store with expiration and background cleanup.
+// Package store provides an in-memory key-value store with expiration and background cleanup.
 
 package store
 
@@ -41,9 +41,7 @@ func runGCRoutine(store *KVStore) {
 			store.mutex.Lock()
 
 			for _, key := range expiredKeys {
-				// double check the expiry here
-				// technically a routine can get interrupted before this and after collection
-				// that means we might delete a key that hasn't expired yet
+				// Recheck avoids race where key’s expiry changes mid-flight.
 				if expiry, exists := store.expiries[key]; exists && store.isExpired(expiry) {
 					delete(store.store, key)
 					delete(store.expiries, key)
@@ -212,7 +210,7 @@ func (s *KVStore) checkAndRemoveIfExpired(key string) bool {
 	return true
 }
 
-// Expire sets a TTL on a key, returns if key is non-existent or expired.
+// Expire sets a TTL on a key, bails if key’s gone or expired.
 func (s *KVStore) Expire(key string, ttl int) bool {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
