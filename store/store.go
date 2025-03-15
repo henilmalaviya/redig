@@ -7,16 +7,52 @@ import (
 )
 
 type KVStore struct {
-	store    map[string]string
-	mutex    sync.RWMutex
-	expiries map[string]time.Time
+	store      map[string]string
+	mutex      sync.RWMutex
+	expiries   map[string]time.Time
+	gcInterval time.Duration
+}
+
+func runGCRoutine(store *KVStore) {
+	for {
+
+		store.mutex.RLock()
+		expiredKeys := make([]string, 0, len(store.expiries))
+		for key, expiry := range store.expiries {
+			if store.isExpired(expiry) {
+				expiredKeys = append(expiredKeys, key)
+			}
+		}
+
+		store.mutex.RUnlock()
+
+		if len(expiredKeys) > 0 {
+			store.mutex.Lock()
+
+			for _, key := range expiredKeys {
+				if expiry, exists := store.expiries[key]; exists && store.isExpired(expiry) {
+					delete(store.store, key)
+					delete(store.expiries, key)
+				}
+			}
+
+			store.mutex.Unlock()
+		}
+
+		time.Sleep(store.gcInterval)
+	}
 }
 
 func NewKVStore() *KVStore {
-	return &KVStore{
-		store:    make(map[string]string),
-		expiries: make(map[string]time.Time),
+	store := &KVStore{
+		store:      make(map[string]string),
+		expiries:   make(map[string]time.Time),
+		gcInterval: 1 * time.Second,
 	}
+
+	go runGCRoutine(store)
+
+	return store
 }
 
 func (s *KVStore) Set(key string, value string) {
