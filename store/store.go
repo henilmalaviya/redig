@@ -222,7 +222,7 @@ func (s *KVStore) isExpired(expiry time.Time) bool {
 
 func (s *KVStore) Persist(key string) bool {
 	s.mutex.RLock()
-	defer s.mutex.Unlock()
+	defer s.mutex.RUnlock()
 
 	if _, exists := s.store[key]; !exists {
 		return false
