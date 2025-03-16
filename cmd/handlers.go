@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"henil.dev/redig/resp"
-	"henil.dev/redig/store"
+	"github.com/henilmalaviya/redig/resp"
+	"github.com/henilmalaviya/redig/store"
 )
 
 type Command = string

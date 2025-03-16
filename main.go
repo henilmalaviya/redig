@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	"henil.dev/redig/server"
-	"henil.dev/redig/store"
+	"github.com/henilmalaviya/redig/server"
+	"github.com/henilmalaviya/redig/store"
 )
 
 func main() {

@@ -5,8 +5,8 @@ import (
 	"log"
 	"net"
 
-	"henil.dev/redig/cmd"
-	"henil.dev/redig/store"
+	"github.com/henilmalaviya/redig/cmd"
+	"github.com/henilmalaviya/redig/store"
 )
 
 func NewTCPListener() (*net.Listener, error) {
