@@ -281,3 +281,28 @@ func (s *KVStore) Persist(key string) bool {
 
 	return true
 }
+
+// MGet returns array of values for multiple keys
+func (s *KVStore) MGet(keys []string) []string {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	values := make([]string, len(keys))
+
+	for i, key := range keys {
+		// check for key expiry
+		if expiry, hasExpiry := s.expiries[key]; hasExpiry && expiry.Before(time.Now()) {
+			// set empty string for expired key
+			values[i] = ""
+		}
+
+		value := s.store[key]
+
+		// NOTE: missing keys are not explicitly handled because,
+		// the value is empty string if the key does not exist
+
+		values[i] = value
+	}
+
+	return values
+}

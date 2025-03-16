@@ -27,6 +27,7 @@ const (
 	ExpireCommand  Command = "expire"
 	TTLCommand     Command = "ttl"
 	PersistCommand Command = "persist"
+	MGetCommand    Command = "mget"
 )
 
 var handlers = map[string]CommandHandler{
@@ -41,6 +42,7 @@ var handlers = map[string]CommandHandler{
 	ExpireCommand:  HandleExpireCommand,
 	TTLCommand:     HandleTTLCommand,
 	PersistCommand: HandlePersistCommand,
+	MGetCommand:    HandleMGetCommand,
 }
 
 func HandleMessage(conn net.Conn, incoming string, kv *store.KVStore) {
@@ -264,4 +266,23 @@ var HandlePersistCommand CommandHandler = func(conn net.Conn, args []string, kv 
 	didPersist := kv.Persist(key)
 
 	return resp.NewIntegerFromBool(didPersist)
+}
+
+var HandleMGetCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
+
+	if len(args) < 1 {
+		return resp.NewError("wrong number of arguments for 'mget' command")
+	}
+
+	keys := args[0:]
+
+	values := kv.MGet(keys)
+
+	responseSlice := make([]resp.Response, len(values))
+
+	for i, value := range values {
+		responseSlice[i] = resp.NewBulkString(value)
+	}
+
+	return resp.NewArray(responseSlice)
 }
