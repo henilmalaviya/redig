@@ -27,9 +27,10 @@ func runGCRoutine(store *KVStore) {
 		// the operation is meant to simplify the dead-lock situations and reduce the full-lock duration
 
 		store.mutex.RLock()
+		now := time.Now()
 		expiredKeys := make([]string, 0, len(store.expiries))
 		for key, expiry := range store.expiries {
-			if store.isExpired(expiry) {
+			if expiry.Before(now) {
 				expiredKeys = append(expiredKeys, key)
 			}
 		}
@@ -40,9 +41,11 @@ func runGCRoutine(store *KVStore) {
 		if len(expiredKeys) > 0 {
 			store.mutex.Lock()
 
+			now := time.Now()
+
 			for _, key := range expiredKeys {
 				// Recheck avoids race where key’s expiry changes mid-flight.
-				if expiry, exists := store.expiries[key]; exists && store.isExpired(expiry) {
+				if expiry, exists := store.expiries[key]; exists && expiry.Before(now) {
 					delete(store.store, key)
 					delete(store.expiries, key)
 				}
@@ -91,7 +94,7 @@ func (s *KVStore) Get(key string) (string, bool) {
 	// lazy expiration check
 	// every-time Get is called, we first check if the key is expired
 	// if the key is expired, treat the key as non-existent
-	if s.checkAndRemoveIfExpired(key) {
+	if s.GC(key) {
 		return "", false
 	}
 
@@ -119,7 +122,7 @@ func (s *KVStore) Delete(key string) bool {
 // Add tweaks a numeric value by x, starts at 0 if key’s new.
 func (s *KVStore) Add(key string, x int) (int, error) {
 
-	s.checkAndRemoveIfExpired(key)
+	s.GC(key)
 
 	// acquire full lock for atomic operation
 	// if we acquired read lock until the increment operation,
@@ -170,58 +173,33 @@ func (s *KVStore) Keys() []string {
 	s.mutex.RUnlock()
 
 	validKeys := make([]string, 0, len(keys))
-	now := time.Now()
+
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
+
 	for _, key := range keys {
-		if expiry, exists := s.expiries[key]; !exists || !expiry.Before(now) {
-			validKeys = append(validKeys, key)
+
+		// if the key is expired and gets deleted, skip it
+		if s.GC(key) {
+			continue
 		}
+
+		validKeys = append(validKeys, key)
 	}
 
 	return validKeys
 }
 
-// checkAndRemoveIfExpired deletes a key if it’s expired, instant fallback for GC.
-func (s *KVStore) checkAndRemoveIfExpired(key string) bool {
-	s.mutex.RLock()
-	expiry, exists := s.expiries[key]
-	if !exists {
-		s.mutex.RUnlock()
-		return false
-	}
-	isExpired := expiry.Before(time.Now())
-	s.mutex.RUnlock()
-
-	if !isExpired {
-		return false
-	}
-
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	expiry, exists = s.expiries[key]
-	// double check the expiry
-	if !exists || !expiry.Before(time.Now()) {
-		return false
-	}
-
-	delete(s.store, key)
-	delete(s.expiries, key)
-	return true
-}
-
 // Expire sets a TTL on a key, bails if key’s gone or expired.
 func (s *KVStore) Expire(key string, ttl int) bool {
+	// collect before setting expiry
+	s.GC(key)
+
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// if the key doesn’t exist, bail
 	if _, exists := s.store[key]; !exists {
-		return false
-	}
-
-	if expiry, hasExpiry := s.expiries[key]; hasExpiry && expiry.Before(time.Now()) {
-		delete(s.store, key)
-		delete(s.expiries, key)
 		return false
 	}
 
@@ -253,30 +231,25 @@ func (s *KVStore) TTL(key string) int {
 	return ttl
 }
 
-// isExpired checks if time is before now
-func (s *KVStore) isExpired(expiry time.Time) bool {
-	return expiry.Before(time.Now())
-}
-
 // Persist yanks a key’s expiration if it’s still good.
 func (s *KVStore) Persist(key string) bool {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
 
+	s.GC(key)
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// key doesn't exist
 	if _, exists := s.store[key]; !exists {
 		return false
 	}
 
+	// key exists but doesn't have expiry
 	if _, hasExpiry := s.expiries[key]; !hasExpiry {
 		return false
 	}
 
-	if s.isExpired(s.expiries[key]) {
-		delete(s.store, key)
-		delete(s.expiries, key)
-		return false
-	}
-
+	// key and expiry both exists
 	delete(s.expiries, key)
 
 	return true
@@ -291,9 +264,10 @@ func (s *KVStore) MGet(keys []string) []string {
 
 	for i, key := range keys {
 		// check for key expiry
-		if expiry, hasExpiry := s.expiries[key]; hasExpiry && expiry.Before(time.Now()) {
+		if s.GC(key) {
 			// set empty string for expired key
 			values[i] = ""
+			continue
 		}
 
 		value := s.store[key]
@@ -305,4 +279,36 @@ func (s *KVStore) MGet(keys []string) []string {
 	}
 
 	return values
+}
+
+// GC attempts to delete a key if it’s expired.
+// Returns true if the key was deleted, false otherwise.
+func (s *KVStore) GC(key string) bool {
+	s.mutex.RLock()
+
+	expiry, hasExpiry := s.expiries[key]
+
+	if !hasExpiry {
+		s.mutex.RUnlock()
+		return false
+	}
+
+	if !expiry.Before(time.Now()) {
+		s.mutex.RUnlock()
+		return false
+	}
+
+	s.mutex.RUnlock()
+
+	// get lazy full-lock to finally delete the key
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if expiry, hasExpiry := s.expiries[key]; hasExpiry && expiry.Before(time.Now()) {
+		delete(s.store, key)
+		delete(s.expiries, key)
+		return true
+	}
+
+	return false
 }
