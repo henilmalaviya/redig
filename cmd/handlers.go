@@ -130,17 +130,23 @@ var HandlePingCommand CommandHandler = func(conn net.Conn, args []string, kv *st
 }
 
 var HandleDelCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
-	if len(args) != 1 {
+	if len(args) < 1 {
 		return resp.NewError(
 			"wrong number of arguments for 'del' command",
 		)
 	}
 
-	key := args[0]
+	keys := args
+	deleteCount := 0
 
-	didExist, _ := kv.Delete(key)
+	for _, key := range keys {
+		didExist, _ := kv.Delete(key)
+		if didExist {
+			deleteCount++
+		}
+	}
 
-	return resp.NewIntegerFromBool(didExist)
+	return resp.NewInteger(deleteCount)
 }
 
 var HandleExistsCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
