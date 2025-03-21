@@ -28,6 +28,7 @@ const (
 	TTLCommand     Command = "ttl"
 	PersistCommand Command = "persist"
 	MGetCommand    Command = "mget"
+	GetDelCommand  Command = "getdel"
 )
 
 var handlers = map[string]CommandHandler{
@@ -43,6 +44,7 @@ var handlers = map[string]CommandHandler{
 	TTLCommand:     HandleTTLCommand,
 	PersistCommand: HandlePersistCommand,
 	MGetCommand:    HandleMGetCommand,
+	GetDelCommand:  HandleGetDelCommand,
 }
 
 func HandleMessage(conn net.Conn, incoming string, kv *store.KVStore) {
@@ -136,7 +138,7 @@ var HandleDelCommand CommandHandler = func(conn net.Conn, args []string, kv *sto
 
 	key := args[0]
 
-	didExist := kv.Delete(key)
+	didExist, _ := kv.Delete(key)
 
 	return resp.NewIntegerFromBool(didExist)
 }
@@ -285,4 +287,21 @@ var HandleMGetCommand CommandHandler = func(conn net.Conn, args []string, kv *st
 	}
 
 	return resp.NewArray(responseSlice)
+}
+
+var HandleGetDelCommand CommandHandler = func(conn net.Conn, args []string, kv *store.KVStore) resp.Response {
+
+	if len(args) < 1 {
+		return resp.NewError("wrong number of arguments for 'getdel' command")
+	}
+
+	key := args[0]
+
+	didExist, oldValue := kv.Delete(key)
+
+	if !didExist {
+		return resp.NewNilString()
+	}
+
+	return resp.NewBulkString(oldValue)
 }

@@ -106,17 +106,20 @@ func (s *KVStore) Get(key string) (string, bool) {
 }
 
 // Delete wipes a key if it exists and not expired
-func (s *KVStore) Delete(key string) bool {
+// it returns the value of the key before deletion
+func (s *KVStore) Delete(key string) (bool, string) {
 	if !s.Has(key) {
-		return false
+		return false, ""
 	}
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	value := s.store[key]
+
 	delete(s.store, key)
 	delete(s.expiries, key)
-	return true
+	return true, value
 }
 
 // Add tweaks a numeric value by x, starts at 0 if key’s new.

@@ -79,6 +79,10 @@ func NewBulkString(s string) BulkString {
 	return BulkString{Value: s}
 }
 
+func NewNilString() BulkString {
+	return NewBulkString("")
+}
+
 type Array struct {
 	Elements []Response
 }
